@@ -130,37 +130,106 @@ ASP.NET Core 已内置支持以下常用的第三方登录提供商：
 
 ---
 
-## ✅ 集成 google 登录（示例）
+## ✅ 集成 google和github 登录（示例）
 
-你可以参考以下代码片段，快速集成 Google 登录功能：
+首先我们需要客户端调用api去发起Challenge,请求第三方授权登录界面。我们会在OnCreatingTicket事件中获取到用户的账号信息。
+接下来就可以根据自己的系统进行业务处理。
+
 
 ```csharp
-services.AddAuthentication(options =>
+[Route("api/[controller]")]
+[ApiController]
+public class AuthController : ControllerBase
 {
-    options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = GoogleDefaults.AuthenticationScheme;
-})
-.AddCookie()
-.AddGoogle(options =>
-{
-    options.ClientId = Configuration["Authentication:Google:ClientId"];
-    options.ClientSecret = Configuration["Authentication:Google:ClientSecret"];
-});
+    /// <summary>
+    /// SIGN IN WITH GOOGLE
+    /// </summary>
+    /// <param name="model"></param>
+    /// <returns></returns>
+    [HttpGet("google/login")]
+    public async Task<IActionResult> SignInWithGoogle()
+    {
+        return Challenge(GoogleDefaults.AuthenticationScheme);
+    }
 
+    [HttpGet("github/login")]
+    public IActionResult SigInWithGithub()
+    {
+        return Challenge(GitHubAuthenticationDefaults.AuthenticationScheme);
+    }
+}
+```
 
-## ✅ 集成 github 登录（示例）
+接下来在 `Program.cs` 中配置 Google 和 GitHub 登录：
 
 ```csharp
-services.AddAuthentication(options =>
+builder.Services.AddAuthentication()
+.AddCookie(CookieAuthenticationDefaults.AuthenticationScheme)
+.AddGoogle("Google", options =>
 {
-    options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = GoogleDefaults.AuthenticationScheme;
+    options.ClientId = builder.Configuration["Google:ClientId"] ?? throw new ArgumentNullException(nameof(options.ClientId), "GoogleClientId configuration is missing.");
+    options.ClientSecret = builder.Configuration["Google:ClientSecret"] ?? throw new ArgumentNullException(nameof(options.ClientSecret), "GoogleClientSecret configuration is missing.");
+    options.CallbackPath = $"/api/Auth/google/callback";
+    options.SaveTokens = true; // Save tokens
+    options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    options.Scope.Add("email");
+    options.Scope.Add("profile");
+    options.Events.OnRedirectToAuthorizationEndpoint = context =>
+    {
+        // 解码原始 redirect_uri
+        var decoded = Uri.UnescapeDataString(context.RedirectUri);
+        // 替换掉 http 为 https
+        var corrected = decoded.Replace("http://", "https://");
+        // 再重新编码
+        var encoded = Uri.EscapeDataString(corrected);
+        // 重新构造完整 URL（注意不重复编码 querystring）
+        var redirectUrl = corrected; // 也可以直接用 corrected
+        context.Response.Redirect(redirectUrl);
+        return Task.CompletedTask;
+    };
+    options.Events.OnCreatingTicket = async context =>
+    {
+        var identity = context.Identity;
+        Console.WriteLine("claims: " + string.Join(", ", identity?.Claims.Select(c => $"{c.Type}:{c.Value}")));
+        // 这里可以获取到用户的 Google 账号信息
+    };
 })
-.AddCookie()
-.AddGitHub(options =>
+.AddGitHub("GitHub", options =>
 {
-    options.ClientId = Configuration["Authentication:GitHub:ClientId"];
-    options.ClientSecret = Configuration["Authentication:GitHub:ClientSecret"];
+    options.ClientId = builder.Configuration["Github:ClientId"] ?? throw new ArgumentNullException(nameof(options.ClientId), "GitHubClientId configuration is missing.");
+    options.ClientSecret = builder.Configuration["Github:ClientSecret"] ?? throw new ArgumentNullException(nameof(options.ClientSecret), "GitHubClientSecret configuration is missing.");
+    options.CallbackPath = $"/api/Auth/github/callback";
+    options.Scope.Add("user:email");
+    options.SaveTokens = true; // Save tokens
+    options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    options.Events.OnRedirectToAuthorizationEndpoint = context =>
+    {
+        // 解码原始 redirect_uri
+        var decoded = Uri.UnescapeDataString(context.RedirectUri);
+        // 替换掉 http 为 https
+        var corrected = decoded.Replace("http://", "https://");
+        // 再重新编码
+        var encoded = Uri.EscapeDataString(corrected);
+        // 重新构造完整 URL（注意不重复编码 querystring）
+        var redirectUrl = corrected; // 也可以直接用 corrected
+        context.Response.Redirect(redirectUrl);
+        return Task.CompletedTask;
+    };
+    options.Events.OnCreatingTicket = async context =>
+    {
+        var accessToken = context.AccessToken;
+        var refreshToken = context.RefreshToken;
+        var identity = context.Identity;
+        Console.WriteLine("claims: " + string.Join(", ", identity?.Claims.Select(c => $"{c.Type}:{c.Value}")));
+        // 这里可以获取到用户的 GitHub 账号信息
+    };
 });
 ```
 
+由于我系统中配置了github的登录，下面是我使用github登录之后在OnRedirectToAuthorizationEndpoint事件中打印的用户信息：
+
+
+
+## 总结
+
+在 ASP.NET Core 中集成 OAuth 2.0 第三方登录非常简单。通过配置相应的认证服务，我们可以轻松实现 Google、GitHub 等平台的登录功能。这种方式不仅提高了用户体验，还能确保安全性，避免直接处理用户密码。
