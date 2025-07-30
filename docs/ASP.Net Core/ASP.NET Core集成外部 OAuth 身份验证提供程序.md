@@ -96,10 +96,10 @@ sequenceDiagram
 
 ASP.NET Core 已内置支持以下常用的第三方登录提供商：
 
-- [x] Google（安装 NuGet 包：`Microsoft.AspNetCore.Authentication.Google`）
-- [x] Facebook（安装 NuGet 包：`Microsoft.AspNetCore.Authentication.Facebook`）
-- [x] Microsoft Account（安装 NuGet 包：`Microsoft.AspNetCore.Authentication.MicrosoftAccount`）
-- [x] Twitter（安装 NuGet 包：`Microsoft.AspNetCore.Authentication.Twitter`）
+- Google（安装 NuGet 包：`Microsoft.AspNetCore.Authentication.Google`）
+- Facebook（安装 NuGet 包：`Microsoft.AspNetCore.Authentication.Facebook`）
+- Microsoft Account（安装 NuGet 包：`Microsoft.AspNetCore.Authentication.MicrosoftAccount`）
+- Twitter（安装 NuGet 包：`Microsoft.AspNetCore.Authentication.Twitter`）
 
 此外，社区维护的 [AspNet.Security.OAuth.Providers](https://github.com/aspnet-contrib/AspNet.Security.OAuth.Providers) 项目还提供了近 **100 多种** 第三方 OAuth 登录认证方式，包括但不限于：
 
@@ -132,8 +132,9 @@ ASP.NET Core 已内置支持以下常用的第三方登录提供商：
 
 ## ✅ 集成 google和github 登录（示例）
 
-首先我们需要客户端调用api去发起Challenge,请求第三方授权登录界面。我们会在OnCreatingTicket事件中获取到用户的账号信息。
-接下来就可以根据自己的系统进行业务处理。
+首先我们需要客户端调用api去发起Challenge，请求第三方授权登录界面。我们会在OnCreatingTicket事件中获取到用户的账号信息。
+我们要依赖于接下来就可以根据自己的系统进行业务处理。
+在现实真实的环境中我们不但要第三方平台上获取ClientId和 ClientSecret，还要配置回调的url。
 
 
 ```csharp
