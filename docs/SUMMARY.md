@@ -39,7 +39,7 @@
   - [第7章-Semantic-Kernel插件介绍](智能体开发框架/SemanticKernel/第7章-Semantic-Kernel插件介绍.md)
   - [第8章-Semantic-Kernel安全篇之防御提示词注入攻击](智能体开发框架/SemanticKernel/第8章-Semantic-Kernel安全篇之防御提示词注入攻击.md)
   - [第9章-Semantic-Kernel函数过滤器](智能体开发框架/SemanticKernel/第9章-Semantic-Kernel函数过滤器.md)
-  - [第10章-Semantic-Kernel中Planning](智能体开发框架/SemanticKernel/第10章-Semantic-Kernel中Planning)]
+  - [第10章-Semantic-Kernel中Planning](智能体开发框架/SemanticKernel/第10章-Semantic-Kernel中Planning)
 - 🌐 ASP.NET Core 
 
 
