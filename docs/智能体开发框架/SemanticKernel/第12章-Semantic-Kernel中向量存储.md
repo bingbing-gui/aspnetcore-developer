@@ -228,7 +228,7 @@ CREATE TABLE public.hotels (
 
 查看完整的示例项目与代码实现：
 
-[https://github.com/dotnet/semantic-kernel](https://github.com/dotnet/semantic-kernel)
+[https://github.com/bingbing-gui/aspnetcore-developer/tree/master/src/09-AI-Agent/SemanticKernel/SK.VectorStores](https://github.com/bingbing-gui/aspnetcore-developer/tree/master/src/09-AI-Agent/SemanticKernel/SK.VectorStores)
 
 ## ✅ 总结
 
