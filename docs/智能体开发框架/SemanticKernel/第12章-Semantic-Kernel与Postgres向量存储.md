@@ -89,19 +89,7 @@ Task<IList<TRecord>> SearchAsync(...);
 
 ---
 
-## Postgres Vector向量存储
-
-介绍如何在 .NET 中使用 Semantic Kernel 提供的向量存储抽象来构建检索增强生成（RAG）工作流。
-
----
-
-### 📦 安装必要的 NuGet 包
-
-所有与向量存储相关的抽象接口都包含在以下包中：
-
-```bash
-dotnet add package Microsoft.SemanticKernel.Connectors.PgVector --prerelease
-```
+## Semantic Kernel支持的Vector Store Connectors
 
 每种向量数据库的具体实现都位于其各自独立的 NuGet 包中。
 
@@ -216,6 +204,7 @@ CREATE TABLE public.hotels (
 ### 演示效果
 
 创建酒店
+
 ![酒店向量存储示意图](/docs/智能体开发框架/SemanticKernel/Materials/create-query.png)
 
 酒店向量查询
