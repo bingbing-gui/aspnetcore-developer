@@ -41,7 +41,7 @@
   - [第9章-Semantic-Kernel函数过滤器](智能体开发框架/SemanticKernel/第9章-Semantic-Kernel函数过滤器.md)
   - [第10章-Semantic-Kernel中Planning](智能体开发框架/SemanticKernel/第10章-Semantic-Kernel 中Planning.md)
   - [第11章-PostgreSQL16中安装pgvector插件](智能体开发框架/SemanticKernel/第11章-PostgreSQL16中安装pgvector插件.md)
-  - [第12章-Semantic-Kernel与Postgres向量存储](智能体开发框架/SemanticKernel/第12章-Semantic-Kernel与Postgres向量存储)
+  - [第12章-Semantic-Kernel与Postgres向量存储](智能体开发框架/SemanticKernel/第12章-Semantic-Kernel与Postgres向量存储.md)
 - 🌐 ASP.NET Core 
 
 

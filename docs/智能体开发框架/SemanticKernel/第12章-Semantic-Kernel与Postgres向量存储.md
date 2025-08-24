@@ -140,7 +140,15 @@ builder.Services.AddPostgresVectorStore(
     builder.Configuration.GetConnectionString("Postgres")!
 );
 
-//使用AzureOpenAI想量化数据
+/*
+这里我们使用AzureOpenAI模型把数据的向量
+这里需要在配置文件中配置模型部署的信息
+  "Embedding": {
+    "ApiKey": "",
+    "DeploymentName": "",
+    "Endpoint": ""
+  }
+*/
 builder.Services.Configure<AzureEmbeddingOptions>(
     builder.Configuration.GetSection("Embedding"));
 
