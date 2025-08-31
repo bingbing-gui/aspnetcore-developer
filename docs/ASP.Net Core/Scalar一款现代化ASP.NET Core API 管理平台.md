@@ -60,7 +60,7 @@ app.Run();
 
 ## 🧑‍💻 示例项目
 
-- [ASP.NET Core 集成 Scalar 示例（GitHub Demo）](https://github.com/scalar/scalar-aspnetcore-demo)
+- [ASP.NET Core 集成 Scalar 示例（GitHub Demo）](https://github.com/bingbing-gui/aspnetcore-developer/tree/master/src/02-WebAPI/OpenAPI/Scalar)
 ---
 
 ## 📌 总结
