@@ -6,9 +6,8 @@
 ---
 
 ## 🚀 官方资源
-
-- 📖 [Scalar 官方文档](https://scalar.com/#api-docs)  
-- 💻 [Scalar GitHub 地址](https://github.com/scalar/scalar)  
+- Scalar 官方文档: https://scalar.com/#api-docs  
+- Scalar GitHub 地址: https://github.com/scalar/scalar  
 
 ---
 
@@ -60,7 +59,7 @@ app.Run();
 
 ## 🧑‍💻 示例项目
 
-- [ASP.NET Core 集成 Scalar 示例（GitHub Demo）](https://github.com/bingbing-gui/aspnetcore-developer/tree/master/src/02-WebAPI/OpenAPI/Scalar)
+ASP.NET Core 集成 Scalar 示例（GitHub Demo）: https://github.com/bingbing-gui/aspnetcore-developer/tree/master/src/02-WebAPI/OpenAPI/Scalar
 ---
 
 ## 📌 总结

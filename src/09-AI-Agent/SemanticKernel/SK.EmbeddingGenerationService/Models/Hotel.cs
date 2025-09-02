@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.VectorData;
 
-namespace SK.VectorStores.Models
+namespace SK.TextEmbeddingGeneration.Models
 {
 
     public static class EmbeddingDims
