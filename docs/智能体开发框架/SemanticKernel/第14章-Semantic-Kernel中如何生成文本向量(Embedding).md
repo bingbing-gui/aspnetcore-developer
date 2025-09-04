@@ -132,7 +132,7 @@ namespace SK.TextEmbeddingGeneration.Services
 
 查看完整的示例项目与代码实现：
 
-[https://github.com/bingbing-gui/aspnetcore-developer/tree/master/src/09-AI-Agent/SemanticKernel/SK.VectorStores](https://github.com/bingbing-gui/aspnetcore-developer/tree/master/src/09-AI-Agent/SemanticKernel/SK.VectorStores)
+[https://github.com/bingbing-gui/aspnetcore-developer/tree/master/src/09-AI-Agent/SemanticKernel/SK.TextEmbeddingGeneration](https://github.com/bingbing-gui/aspnetcore-developer/tree/master/src/09-AI-Agent/SemanticKernel/SK.TextEmbeddingGeneration)
 
 
 ## 总结
