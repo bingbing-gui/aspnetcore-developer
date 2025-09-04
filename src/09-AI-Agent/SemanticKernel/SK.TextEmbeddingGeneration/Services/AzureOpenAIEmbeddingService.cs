@@ -1,9 +1,6 @@
 ﻿using Azure;
-using Azure.AI.OpenAI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
-using Microsoft.SemanticKernel.Embeddings;
-using OpenAI.Embeddings;
 using SK.TextEmbeddingGeneration.Models;
 
 namespace SK.TextEmbeddingGeneration.Services
