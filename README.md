@@ -2,5 +2,4 @@
 
 ---
 
-![ASP.NET Core Roadmap](/aspnetcore-developer/aspnetcore-roadmap.png)
-
+![ASP.NET Core Roadmap](aspnetcore-roadmap.png)
