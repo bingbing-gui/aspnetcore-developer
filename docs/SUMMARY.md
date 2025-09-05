@@ -20,7 +20,7 @@
   * [1.15. 无监督学习之聚类](ai-fundamentals/第15章-无监督学习之聚类.md)
   * [1.16. 深度学习](ai-fundamentals/第16章-深度学习.md)
 
-* [Semantic Kernel 框架](sk-agent-framework/SemanticKernel/README.md)
+* [2. semantic kernel框架](sk-agent-framework/README.md)
   * [第1章-智能体开发框架Semantic-Kernel介绍](sk-agent-framework/第1章-智能体开发框架Semantic-Kernel介绍.md)
   * [第2章-Semantic-Kernel框架中的Kernel对象](sk-agent-framework/第2章-Semantic-Kernel框架中的Kernel对象.md)
   * [第3章-Semantic-Kernel核心组件](sk-agent-framework/第3章-Semantic-Kernel核心组件.md)
