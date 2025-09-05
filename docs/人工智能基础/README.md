@@ -1,12 +1,12 @@
-# 🤖 AI 基础篇
+# AI 基础篇
 
 本章节主要介绍人工智能的基本理论、发展路径、模型机制及应用理解，为进入现代 AI 开发打下基础。
 
 ---
 
-## 📘 文章目录
+## 文章目录
 
-### 🧠 人工智能入门
+### 人工智能入门
 
 - [第1章：人工智能的前世今生](第1章-人工智能的前世今生.md)
 - [第2章：AI的核心能力](第2章-AI的核心能力.md)
@@ -21,22 +21,14 @@
 
 ---
 
-### 📊 机器学习进阶
+### 机器学习进阶
 
 - [第11章：机器学习分类](第11章-机器学习分类.md)
 - [第12章：监督学习之回归与评估模型](第12章-监督学习之回归与评估模型.md)
-- [第13章：监督学习之二元分类(Binary classification)](第13章-监督学习之二元分类(Binary Classification).md)
-- [第14章：监督学习之多分类(Multiclass Classification)](第14章-监督学习之多类分类 (Multiclass Classification).md)
-- [第15章：无监督学习之聚类(Clustering)](第15章-无监督学习之集群(Clustering))
-- [第16章：深度学习(Deep learning)](第16章-深度学习(Deep learning))
-
----
-
-### ☁️ Azure AI 实践基础
-
-- [第17章：Azure机器学习](第17章-Azure机器学习.md)
-- [第18章：Azure平台上的AI服务](第18章-Azure平台上的AI服务.md)
-- [第19章：创建并使用Azure AI服务](第19章-创建并使用Azure%20AI服务.md)
+- [第13章：监督学习之二元分类(Binary classification)](<第13章-监督学习之二元分类(Binary Classification).md>)
+- [第14章：监督学习之多分类(Multiclass Classification)](<第14章-监督学习之多类分类 (Multiclass Classification).md>)
+- [第15章：无监督学习之聚类(Clustering)](<第15章-无监督学习之集群(Clustering)>)
+- [第16章：深度学习(Deep learning)](<第16章-深度学习(Deep learning)>)
 
 ---
 
