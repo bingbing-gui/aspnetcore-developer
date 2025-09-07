@@ -28,7 +28,7 @@
   * [2.5. semantic kernel中FunctionCalling](sk-agent-framework/第5章-Semantic-Kernel中FunctionCalling.md)
   * [2.6. semantic kernel中提示工程学与参数调优](sk-agent-framework/第6章-提示工程学与参数调优.md)
   * [2.7. 提示词诱导(Prompt Priming)](<sk-agent-framework/第7章-提示词诱导(Prompt Priming).md>)
-  * [2.8. 零样本提示词和少良样本提示词](<sk-agent-framework/第8章-零样本提示词和少良样本提示词>)
+  * [2.8. 零样本提示词和少良样本提示词](sk-agent-framework/第8章-零样本提示词和少良样本提示词)
   * [2.9. 思维链提示](sk-agent-framework/第9章-思维链提示.md)
   * [2.10. semantic kernel运行提示词](sk-agent-framework/第10章-Semantic-Kernel提示词和模板以及上下文记忆.md)
   * [2.11. semantic kernel插件介绍](sk-agent-framework/第11章-Semantic-Kernel插件介绍.md)
