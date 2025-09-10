@@ -16,6 +16,7 @@ public sealed class HotelService : IHotelService
         _vectorStore = vectorStore;
         _emb = emb;
         connectionString = configuration.GetConnectionString("Postgres");
+        
     }
 
     // 获取集合（表名示例为 "Hotels"）
