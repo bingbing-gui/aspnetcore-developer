@@ -21,7 +21,7 @@ builder.Services.AddSingleton((serviceProvider) =>
 
     var configuration = serviceProvider.GetRequiredService<IConfiguration>();
 
-    var github_mcp_key = "your_github_pat_token";
+    var github_mcp_key = "";
 
     if (!string.IsNullOrWhiteSpace(github_mcp_key))
     {
