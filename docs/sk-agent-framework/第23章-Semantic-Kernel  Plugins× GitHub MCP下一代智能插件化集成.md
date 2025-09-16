@@ -231,7 +231,7 @@ AI 会自动调用 GitHub MCP 工具，为你在仓库里创建 Issue：
 
 查看完整的示例项目与代码实现：
 
-[https://github.com/bingbing-gui/aspnetcore-developer/tree/master/src/09-AI-Agent/SemanticKernel/SK.TextEmbeddingGeneration](https://github.com/bingbing-gui/aspnetcore-developer/tree/master/src/09-AI-Agent/SemanticKernel/SK.TextEmbeddingGeneration)
+[https://github.com/bingbing-gui/aspnetcore-developer/tree/master/src/09-AI-Agent/SemanticKernel/SK.MCP.Plugins](https://github.com/bingbing-gui/aspnetcore-developer/tree/master/src/09-AI-Agent/SemanticKernel/SK.MCP.Plugins)
 
 
 
