@@ -80,11 +80,10 @@ Console.WriteLine(await agent.RunAsync("现在把这个段子加上一些表情�
 
 当你运行这段代码时，控制台可能会输出：
 
-AI: Why couldn't the pirate learn the alphabet? Because he was lost at C!
+
 
 [系统提示]：对话状态已保存...
 
-AI: Arrr matey! 🏴‍☠️ Why couldn't the ol' pirate learn his alphabet? Because he was forever lost at C! 🌊⚓️😂
 
 
 这证明 Agent 完美继承了之前的记忆！
