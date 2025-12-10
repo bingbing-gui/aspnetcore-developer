@@ -177,139 +177,81 @@ public override JsonElement Serialize(JsonSerializerOptions? options = null) =>
 
 ## 代码执行逻辑序列
 
-Main  
-│  
-│ ① agent.GetNewThread()  
-│────────────────────────────────────► AIAgent  
-│                                     │  
-│                                     │ 创建 AgentThread（内部还没有 Store 或懒加载）  
-│                                     ▼  
-│◄────────────────────────────────────┘  
-│    thread  
-│  
-│ ② RunAsync("茶馆段子", thread)  
-│────────────────────────────────────► AIAgent  
-│                                     │  
-│                                     │ 2.1 需要消息存储：从 thread 中取 ChatMessageStore  
-│                                     │    （若没有则通过工厂创建）  
-│                                     ▼  
-│                           AgentThread  
-│                                     │  
-│                                     │ GetService<ChatMessageStore>()  
-│                                     ▼  
-│                           ChatMessageStoreFactory  
-│                                     │  
-│                                     │ 通过工厂创建：  
-│                                     │ new VectorChatMessageStore(vectorStore, serializedState:null)  
-│                                     ▼  
-│                           VectorChatMessageStore  
-│                                     │（此时 ThreadDbKey 还是 null）  
-│                                     │  
-│                    2.2 读取历史：GetMessagesAsync()  
-│────────────────────────────────────►│  
-│                                     │ 里头：  
-│                                     │  - 从 VectorStore.GetCollection("ChatHistory")  
-│                                     │  - 用 ThreadId == null 查询 → 没有记录  
-│                                     ▼  
-│                              VectorStore  
-│                                     │ 返回空列表  
-│◄────────────────────────────────────┘  
-│  
-│                2.3 组合消息并调用模型  
-│────────────────────────────────────► Model  
-│                                     │  
-│                                     │ 模型生成“茶馆段子”回复  
-│                                     ▼  
-│◄────────────────────────────────────┘  
-│  
-│        2.4 保存新消息：AddMessagesAsync([user, assistant])  
-│────────────────────────────────────► VectorChatMessageStore  
-│                                     │  
-│                                     │  - ThreadDbKey 为空 → 生成新的 GUID  
-│                                     │  - Upsert 到 VectorStore：  
-│                                     │    Key = ThreadDbKey + MessageId  
-│                                     │    ThreadId = ThreadDbKey  
-│                                     ▼  
-│                              VectorStore  
-│                                     │ 记录两条消息  
-│◄────────────────────────────────────┘  
-│  
-│◄──────────────────────────────────── AIAgent  
-│  输出第一次结果  
-│  
-│ ③ thread.Serialize()  
-│────────────────────────────────────► AgentThread  
-│                                     │  
-│                                     │ 调用内部的 ChatMessageStore.Serialize()  
-│                                     ▼  
-│                           VectorChatMessageStore  
-│                                     │  
-│                                     │ Serialize() → JsonElement(ThreadDbKey)  
-│                                     ▼  
-│◄────────────────────────────────────┘  
-│   得到 serializedThread（里面带着 ThreadDbKey）  
-│  
-│ ④ agent.DeserializeThread(serializedThread)  
-│────────────────────────────────────► AIAgent  
-│                                     │  
-│                                     │ 创建新的 AgentThread resumedThread  
-│                                     │ 并调用 ChatMessageStoreFactory(ctx.SerializedState)  
-│                                     ▼  
-│                           ChatMessageStoreFactory  
-│                                     │  
-│                                     │ new VectorChatMessageStore(vectorStore, serializedState: ThreadDbKey)  
-│                                     │  → 构造函数中恢复 this.ThreadDbKey  
-│                                     ▼  
-│                           VectorChatMessageStore  
-│                                     │（ThreadDbKey = 上一次生成的那个 GUID）  
-│◄────────────────────────────────────┘  
-│   得到 resumedThread  
-│  
-│ ⑤ RunAsync("再讲一遍+表情", resumedThread)  
-│────────────────────────────────────► AIAgent  
-│                                     │  
-│                                     │ 5.1 从 resumedThread 取出 VectorChatMessageStore  
-│                                     ▼  
-│                           AgentThread  
-│                                     │ GetService<ChatMessageStore>()  
-│                                     ▼  
-│                           VectorChatMessageStore  
-│                                     │  
-│                 5.2 GetMessagesAsync()  
-│────────────────────────────────────►│  
-│                                     │  - 用 ThreadId == ThreadDbKey  
-│                                     │  - 去 VectorStore 查属于这个线程的记录  
-│                                     ▼  
-│                              VectorStore  
-│                                     │ 返回之前那两条消息  
-│◄────────────────────────────────────┘  
-│  
-│                 5.3 带着历史 + 新用户消息，调模型  
-│────────────────────────────────────► Model  
-│                                     │  
-│                                     │ 模型基于历史“茶馆段子”再讲一遍 + 表情  
-│                                     ▼  
-│◄────────────────────────────────────┘  
-│  
-│         5.4 AddMessagesAsync() 保存新一轮的 user/assistant 消息  
-│────────────────────────────────────► VectorChatMessageStore  
-│                                     │  
-│                                     │ 还是用同一个 ThreadDbKey 写入 VectorStore  
-│                                     ▼  
-│                              VectorStore  
-│                                     │  
-│◄────────────────────────────────────┘  
-│  
-│◄──────────────────────────────────── AIAgent  
-│   输出第二次结果  
-│  
-│ ⑥ resumedThread.GetService<VectorChatMessageStore>()  
-│────────────────────────────────────► AgentThread  
-│                                     │  
-│                                     │ 返回当前线程绑定的 VectorChatMessageStore  
-│                                     ▼  
-│◄────────────────────────────────────┘  
-│  访问 messageStore.ThreadDbKey（就是那串 GUID）
+sequenceDiagram
+    autonumber
+
+    participant Main
+    participant Agent as AIAgent
+    participant Thread as AgentThread
+    participant Factory as ChatMessageStoreFactory
+    participant MsgStore as VectorChatMessageStore
+    participant VStore as VectorStore
+    participant Model
+
+    %% ① GetNewThread
+    Main->>Agent: ① GetNewThread()
+    Agent->>Agent: 创建 AgentThread（尚未绑定 Store）
+    Agent-->>Main: 返回 AgentThread(thread)
+
+    %% ② RunAsync 第一次调用
+    Main->>Agent: ② RunAsync(\"茶馆段子\", thread)
+    Agent->>Thread: 2.1 获取 ChatMessageStore\nthread.GetService<ChatMessageStore>()
+    Thread->>Factory: 如无实例 → 调用 ChatMessageStoreFactory(ctx)
+    Factory->>MsgStore: new VectorChatMessageStore(vectorStore, serializedState: null)
+    MsgStore-->>Thread: 绑定到当前 Thread
+
+    Agent->>MsgStore: 2.2 GetMessagesAsync()
+    MsgStore->>VStore: 查询 ChatHistory\n条件：ThreadId == null
+    VStore-->>MsgStore: 返回空列表
+    MsgStore-->>Agent: 历史消息：[]
+
+    Agent->>Model: 2.3 调用模型生成“茶馆段子”
+    Model-->>Agent: 返回 assistant 回复
+
+    Agent->>MsgStore: 2.4 AddMessagesAsync([user, assistant])
+    MsgStore->>MsgStore: ThreadDbKey 为空 → 生成 GUID
+    MsgStore->>VStore: Upsert 两条记录\nKey = ThreadDbKey + MessageId\nThreadId = ThreadDbKey
+    VStore-->>MsgStore: 写入成功
+    Agent-->>Main: 返回第一次对话结果
+
+    %% ③ Serialize
+    Main->>Thread: ③ thread.Serialize()
+    Thread->>MsgStore: 调用 Serialize()
+    MsgStore-->>Thread: 返回 JsonElement(ThreadDbKey)
+    Thread-->>Main: 返回 serializedThread（包含 ThreadDbKey）
+
+    %% ④ DeserializeThread
+    Main->>Agent: ④ DeserializeThread(serializedThread)
+    Agent->>Agent: 创建新的 AgentThread(resumedThread)
+    Agent->>Factory: 调用 ChatMessageStoreFactory(ctx.SerializedState)
+    Factory->>MsgStore: new VectorChatMessageStore(vectorStore, serializedState: ThreadDbKey)
+    MsgStore->>MsgStore: 构造函数中恢复 this.ThreadDbKey
+    MsgStore-->>Agent: 绑定到 resumedThread
+    Agent-->>Main: 返回 resumedThread
+
+    %% ⑤ RunAsync 第二次调用
+    Main->>Agent: ⑤ RunAsync(\"再讲一遍+表情\", resumedThread)
+    Agent->>Thread: 5.1 获取 ChatMessageStore
+    Thread-->>Agent: 返回 VectorChatMessageStore
+
+    Agent->>MsgStore: 5.2 GetMessagesAsync()
+    MsgStore->>VStore: 查询 ChatHistory\n条件：ThreadId == ThreadDbKey
+    VStore-->>MsgStore: 返回之前两条消息
+    MsgStore-->>Agent: 历史消息：[user, assistant]
+
+    Agent->>Model: 5.3 带着历史 + 新用户消息调用模型
+    Model-->>Agent: 返回新的 assistant 回复（带表情）
+
+    Agent->>MsgStore: 5.4 AddMessagesAsync([user, assistant])
+    MsgStore->>VStore: 继续用同一 ThreadDbKey 写入新消息
+    VStore-->>MsgStore: 写入成功
+    Agent-->>Main: 返回第二次对话结果
+
+    %% ⑥ 获取存储器实例
+    Main->>Thread: ⑥ GetService<VectorChatMessageStore>()
+    Thread-->>Main: 返回 MsgStore 实例
+    Main->>MsgStore: 访问 ThreadDbKey（GUID）
+
 
 ## 总结
 
