@@ -11,16 +11,20 @@
 
 简单来说，就是让你的代码“自己说话”。通过收集 Logs（日志）、Metrics（指标）和 Traces（分布式追踪），可以清晰地看到 AI Agent 内部发生了什么。
 
-## 实战：3 步实现监控
-基于 Microsoft.Agents.AI，集成监控很简单。
+## 实战：三步实现监控
+
+基于microsoft-agent-framework，集成监控很简单。
 
 ### 第一步：准备 Tracer
 
-首先，配置 OpenTelemetry 的收集器。在开发阶段输出到控制台；在生产环境发往 Azure Application Insights。
+首先，配置 OpenTelemetry 的收集器。我们在这里将指标到处到Console
 
-使用 CLI 安装所需依赖（在项目目录运行）：
+- 开发阶段：输出到控制台（Console Exporter）
+- 生产环境：发送到 Azure Application Insights（Azure Monitor）
 
-    ```bash
+创建一个控制台的应用程序，添加如下Nuget包：
+
+```bash
     dotnet add package Azure.AI.OpenAI --version 2.1.0
     dotnet add package Azure.Identity --version 1.18.0-beta.2
     dotnet add package Azure.Monitor.OpenTelemetry.Exporter --version 1.6.0-beta.1
@@ -28,42 +32,42 @@
     dotnet add package Microsoft.Extensions.AI.OpenAI --version 10.1.0-preview.1.25608.1
     dotnet add package OpenTelemetry --version 1.14.0
     dotnet add package OpenTelemetry.Exporter.Console --version 1.14.0
-    ```
-
+```
+在应用里启用 OpenTelemetry（OTel） 的链路追踪功能，并把追踪日志输出到控制台和 Azure Monitor（如果你配置了连接字符串）。
 
 ```csharp
-// 定义数据源名称
 string sourceName = Guid.NewGuid().ToString("N");
 
 var tracerProviderBuilder = Sdk.CreateTracerProviderBuilder()
     .AddSource(sourceName) // 注册数据源
     .AddConsoleExporter(); // 输出到控制台，方便调试
-
 // 如果配置了连接字符串，则发送到 Azure Monitor
 if (!string.IsNullOrWhiteSpace(appInsightsStr))
 {
     tracerProviderBuilder.AddAzureMonitorTraceExporter(
         options => options.ConnectionString = appInsightsStr);
 }
-
 using var tracerProvider = tracerProviderBuilder.Build();
 
 ```
 ### 第二步：注入 Agent
+
 微软的 Agent Framework 采用流畅的 Builder 模式，只需调用 `.UseOpenTelemetry()`。
 
 ```csharp
+
 AIAgent agent = new AzureOpenAIClient(new Uri(endpoint), new AzureCliCredential())
     .GetChatClient(deploymentName)
     .CreateAIAgent(instructions: "你是一位江湖说书人，擅长用幽默、接地气的方式讲笑话和故事。", name: "Joker")
     .AsBuilder()
     .UseOpenTelemetry(sourceName: sourceName)
     .Build();
+
 ```
 
 ### 第三步：像往常一样运行
-无需修改业务逻辑代码，无论是普通调用还是流式调用，监控数据都会自动采集。
 
+无需修改业务逻辑代码，无论是普通调用还是流式调用，监控数据都会自动采集。
 ```csharp
 // 运行 Agent
 Console.WriteLine(await agent.RunAsync("给我讲一个发生在茶馆里的段子，轻松一点的那种。"));
