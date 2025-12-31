@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="../13-Dev-WebUI/13-Dev-WebUI.csproj" />
+  <Project Path="13-Dev-UI.csproj" />
+</Solution>
