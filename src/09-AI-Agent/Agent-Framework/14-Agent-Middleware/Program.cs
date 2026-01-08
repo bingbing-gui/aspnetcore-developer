@@ -21,17 +21,18 @@ Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false
 var endpoint = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT") ?? throw new InvalidOperationException("AZURE_OPENAI_ENDPOINT is not set.");
 var deploymentName = Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT_NAME") ?? "gpt-4o";
 
-// 创建Azure OpenAI客户端并获取ChatCliet对象
-var azureOpenAIClient = new AzureOpenAIClient(new Uri(endpoint), new AzureCliCredential())
-    .GetChatClient(deploymentName);
+
 
 [Description("获取指定位置的天气.")]
 static string GetWeather([Description("用于查询天气的地点.")] string location)
     => $"{location} 的天气是多云，最高气温为 15°C。";
 
 [Description("当前的日期时间偏移量")]
-static string GetDateTime()
-    => DateTimeOffset.Now.ToString();
+static string GetDateTime()=> DateTimeOffset.Now.ToString();
+
+// 创建Azure OpenAI客户端并获取ChatCliet对象
+var azureOpenAIClient = new AzureOpenAIClient(new Uri(endpoint), new AzureCliCredential())
+    .GetChatClient(deploymentName);
 
 // 构建 Agent 时注入底层中间件
 var originalAgent = azureOpenAIClient.AsIChatClient()
@@ -50,17 +51,17 @@ var middlewareEnabledAgent = originalAgent
 
 var thread = middlewareEnabledAgent.GetNewThread();
 
-//Console.WriteLine("\n\n=== 示例 1：措辞防护（Wording Guardrail） ===");
-//var guardRailedResponse = await middlewareEnabledAgent.RunAsync("告诉我一些有害的内容。");
-//Console.WriteLine($"防护后的响应：{guardRailedResponse}");
+Console.WriteLine("\n\n=== 示例 1：措辞防护（Wording Guardrail） ===");
+var guardRailedResponse = await middlewareEnabledAgent.RunAsync("告诉我一些有害的内容。");
+Console.WriteLine($"防护后的响应：{guardRailedResponse}");
 
 
-//Console.WriteLine("\n\n=== 示例 2：PII 检测（个人敏感信息） ===");
-//var piiResponse = await middlewareEnabledAgent.RunAsync("我的名字是 John Doe，电话是 123-456-7890，邮箱是 john@something.com");
-//Console.WriteLine($"PII 过滤后的响应：{piiResponse}");
+Console.WriteLine("\n\n=== 示例 2：PII 检测（个人敏感信息） ===");
+var piiResponse = await middlewareEnabledAgent.RunAsync("我的名字是 John Doe，电话是 123-456-7890，邮箱是 john@something.com");
+Console.WriteLine($"PII 过滤后的响应：{piiResponse}");
 
 
-//Console.WriteLine("\n\n=== 示例 3：Agent 函数中间件 ===");
+Console.WriteLine("\n\n=== 示例 3：Agent 函数中间件 ===");
 
 var options = new ChatClientAgentRunOptions(new()
 {
@@ -71,14 +72,12 @@ var functionCallResponse = await middlewareEnabledAgent.RunAsync("西雅图现�
 
 Console.WriteLine($"函数调用响应: {functionCallResponse}");
 
-Console.WriteLine("\n\n=== 示例 4：按请求的中间件（Per-request middleware），带“人工审批”的函数调用授权（Human-in-the-loop approval）===");
 
 async Task<ChatResponse> ChatClientMiddleware(IEnumerable<ChatMessage> message, ChatOptions? options, IChatClient innerChatClient, CancellationToken cancellationToken)
 {
     Console.WriteLine("Chat Client 中间件 - 运行前聊天");
     var response = await innerChatClient.GetResponseAsync(message, options, cancellationToken);
     Console.WriteLine("Chat Client 中间件 - 运行后聊天");
-
     return response;
 }
 
@@ -176,6 +175,7 @@ async Task<AgentRunResponse> GuardrailMiddleware(IEnumerable<ChatMessage> messag
 }
 
 
+Console.WriteLine("\n\n=== 示例 4：按请求的中间件（Per-request middleware），带“人工审批”的函数调用授权（Human-in-the-loop approval）===");
 
 #pragma warning disable MEAI001 
 //var optionsWithApproval = new ChatClientAgentRunOptions(new()
