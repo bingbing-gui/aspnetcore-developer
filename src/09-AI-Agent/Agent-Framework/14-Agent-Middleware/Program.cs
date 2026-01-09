@@ -28,7 +28,7 @@ static string GetWeather([Description("用于查询天气的地点.")] string lo
     => $"{location} 的天气是多云，最高气温为 15°C。";
 
 [Description("当前的日期时间偏移量")]
-static string GetDateTime()=> DateTimeOffset.Now.ToString();
+static string GetDateTime() => DateTimeOffset.Now.ToString();
 
 // 创建Azure OpenAI客户端并获取ChatCliet对象
 var azureOpenAIClient = new AzureOpenAIClient(new Uri(endpoint), new AzureCliCredential())
@@ -69,7 +69,6 @@ var options = new ChatClientAgentRunOptions(new()
 });
 
 var functionCallResponse = await middlewareEnabledAgent.RunAsync("西雅图现在几点了？天气怎么样？", thread, options);
-
 Console.WriteLine($"函数调用响应: {functionCallResponse}");
 
 
@@ -175,9 +174,9 @@ async Task<AgentRunResponse> GuardrailMiddleware(IEnumerable<ChatMessage> messag
 }
 
 
-Console.WriteLine("\n\n=== 示例 4：按请求的中间件（Per-request middleware），带“人工审批”的函数调用授权（Human-in-the-loop approval）===");
+//Console.WriteLine("\n\n=== 示例 4：按请求的中间件（Per-request middleware），带“人工审批”的函数调用授权（Human-in-the-loop approval）===");
 
-#pragma warning disable MEAI001 
+//#pragma warning disable MEAI001 
 //var optionsWithApproval = new ChatClientAgentRunOptions(new()
 //{
 //    // Adding a function with approval required
@@ -186,12 +185,11 @@ Console.WriteLine("\n\n=== 示例 4：按请求的中间件（Per-request middle
 //{
 //    ChatClientFactory = (chatClient) => chatClient
 //        .AsBuilder()
-//        .Use(PerRequestChatClientMiddleware, null)
+//        .Use(PerRequestChatClientMiddleware, null) // Using the non-streaming for handling streaming as well
 //        .Build()
 //};
-#pragma warning restore MEAI001
+//#pragma warning restore MEAI001
 
-// var response = middlewareAgent  
 //var response = await originalAgent
 //    .AsBuilder()
 //    .Use(PerRequestFunctionCallingMiddleware)

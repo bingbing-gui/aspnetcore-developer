@@ -134,206 +134,179 @@ Microsoft Agent Framework 的 Middleware 机制，正是基于这一思想，将
 
 ## Agent Framework 中的 Middleware
 
-在进入代码之前，先用“作用范围（Scope）”把三类 Middleware 的边界讲清楚。  
-因为 Agent Framework 的 Middleware 并不是一条统一管道，而是分布在 Agent 执行生命周期的不同阶段。
+在进入具体代码前，需要明确：Agent Framework 不存在一条统一的 Middleware Pipeline。一次完整的 Agent Run 中，框架刻意划分并治理了三个本质不同的执行边界，每个边界对应一类不可替代的 Middleware。可以把一次 Agent Run 理解为三条并行存在、但在时间上相互嵌套的 Pipeline。
 
-你可以把它理解为：一次 Agent Run 里存在三条不同的 Pipeline（治理边界）：
+### 一次 Agent Run 的三条治理边界
+- 模型推理边界（LLM Call）：Agent 与大语言模型之间的请求与响应
+- 行为决策与执行边界（Function / Tool Call）：模型已决定“调用某个函数”，但系统尚未或刚刚执行
+- Agent 运行生命周期边界（Agent Run）：一次完整 Agent 运行的整体输入与最终输出
 
-1. 模型推理边界（LLM Call）：Agent 与 LLM 的请求/响应
-2. 函数决策与执行边界（Tool/Function Call）：LLM 决定调用函数之后，到真实函数执行前/后
-3. Agent运行生命周期边界（Agent Run）：一次完整 Agent 运行的输入与输出
-
-提示：  
-ASP.NET Core 只有一条 HTTP Pipeline（HttpContext → next → response），  
-Agent Framework 则是三条 Pipeline 分别治理：模型调用 / 行为执行 / 输入输出。
+对比来看：ASP.NET Core 只有一条 HTTP Pipeline，而 Agent Framework 同时治理模型调用、行为执行、业务输入输出三个层面。
 
 ---
 
 ## 1) Agent Run Middleware（Agent 生命周期级）
 
-### 作用范围（Scope）
+作用范围
+- 作用于一次完整的 Agent 运行过程
+- 可拦截并修改输入消息 IEnumerable<ChatMessage> 与最终输出 AgentRunResponse
+- 最外层、最贴近业务语义
 
-- 拦截对象：一次完整的 Agent 运行过程
-- 能处理的内容：
-    - 输入消息（IEnumerable<ChatMessage>）
-    - 最终输出结果（AgentRunResponse）
-- 典型用途：
-    - PII 脱敏（输入/输出双向）
-    - Guardrails（输入/输出双向）
-    - 统一审计、结果转换
+典型用途
+- 输入/输出双向的 PII 脱敏
+- 输入/输出双向的内容合规（Guardrails）
+- 统一审计、结果转换、业务级兜底
 
-### 与 ASP.NET Core Middleware 的不同点
+与 ASP.NET Core 的核心差异
+- 处理对象：HTTP Request/Response → Agent 输入消息/最终输出
+- 上下文：HttpContext → messages/thread/options
+- next：RequestDelegate(context) → innerAgent.RunAsync(...)
+- 调用次数：每请求一次 → 每次 Agent Run 一次（Run 内部可能多次 LLM 推理与函数调用）
 
-| 维度 | ASP.NET Core | Agent Run Middleware |
-|---|---|---|
-| 处理对象 | HTTP Request/Response | 输入消息 + 最终 Agent 输出 |
-| 上下文 | HttpContext | messages/thread/options |
-| next | RequestDelegate next(context) | innerAgent.RunAsync(...) |
-| 调用次数 | 每个请求一次 | 每次 Run 一次（但 Run 内部可能多次 LLM call / 多次函数调用） |
+注意
+- Agent Run Middleware 不直接治理函数参数或返回值，治理的是“整体输入”和“整体输出”。
 
-说明：Agent Run Middleware 不直接治理“函数参数/返回值”（那属于 Function Calling Middleware），  
-它治理的是整体输入与整体输出。
-
-### 如何定义（Definition）
-
+定义
 ```csharp
 async Task<AgentRunResponse> CustomAgentRunMiddleware(
-        IEnumerable<ChatMessage> messages,
-        AgentThread? thread,
-        AgentRunOptions? options,
-        AIAgent innerAgent,
-        CancellationToken ct)
+    IEnumerable<ChatMessage> messages,
+    AgentThread? thread,
+    AgentRunOptions? options,
+    AIAgent innerAgent,
+    CancellationToken ct)
 {
-        // Before：输入治理 / 审计（可改写 messages）
-        var response = await innerAgent.RunAsync(messages, thread, options, ct);
+    // Before：输入治理 / 审计
+    var response = await innerAgent.RunAsync(messages, thread, options, ct);
 
-        // After：输出治理 / 结果转换（可改写 response）
-        return response;
+    // After：输出治理 / 结果转换
+    return response;
 }
 ```
 
-### 如何注册（Registration）
-
+注册
 ```csharp
 var agent = originalAgent
-        .AsBuilder()
-        .Use(runFunc: CustomAgentRunMiddleware, runStreamingFunc: null)
-        .Build();
+    .AsBuilder()
+    .Use(runFunc: CustomAgentRunMiddleware, runStreamingFunc: null)
+    .Build();
 ```
 
-### 执行模型（Mental Model）
-
+执行模型
 ```
 Messages
-    → AgentRunMiddleware (前)
-        → innerAgent.RunAsync(...)
-    ← AgentRunMiddleware (后)
+  → AgentRunMiddleware (Before)
+      → innerAgent.RunAsync(...)
+  ← AgentRunMiddleware (After)
 AgentRunResponse
 ```
 
 ### 1.1) Agent Run Streaming Middleware（流式生命周期级）
 
-#### 作用范围（Scope）
+Streaming 场景下，Agent 持续输出 AgentRunResponseUpdate。
 
-- 拦截对象：Streaming 场景下逐条输出的 AgentRunResponseUpdate
+作用范围
+- 拦截 Streaming 过程中的每一条 Update
 
-#### 典型用途：
+典型用途
+- Token/Update 级统计
+- 流式过滤、采样、缓存
+- SSE/gRPC 类流式治理
 
-- 逐 token / 逐 update 统计
-- 流式过滤 / 采样 / 缓存
-- SSE / gRPC 类似的流式治理
-
-#### 与 ASP.NET Core Middleware 的不同点
-
-- ASP.NET Core 常见的是一次性 Response；Streaming 更像 SSE/gRPC 流。
-- 在 Agent Streaming 中拿到的不是完整 Response，而是一串 Updates。
-
-#### 如何定义（Definition）
-
+定义
 ```csharp
 async IAsyncEnumerable<AgentRunResponseUpdate> CustomAgentRunStreamingMiddleware(
-        IEnumerable<ChatMessage> messages,
-        AgentThread? thread,
-        AgentRunOptions? options,
-        AIAgent innerAgent,
-        CancellationToken ct)
+    IEnumerable<ChatMessage> messages,
+    AgentThread? thread,
+    AgentRunOptions? options,
+    AIAgent innerAgent,
+    CancellationToken ct)
 {
-        // Before：流式开始前
+    // Before：流式开始前
 
-        await foreach (var update in innerAgent.RunStreamingAsync(messages, thread, options, ct))
-        {
-                // During：逐条 update 拦截
-                yield return update;
-        }
+    await foreach (var update in innerAgent.RunStreamingAsync(messages, thread, options, ct))
+    {
+        // During：逐条 update 拦截
+        yield return update;
+    }
 
-        // After：流式结束后
+    // After：流式结束后
 }
 ```
 
-#### 如何注册（Registration：建议与非流式成对）
+注册建议
 
 ```csharp
 var agent = originalAgent
-        .AsBuilder()
-        .Use(
-                runFunc: CustomAgentRunMiddleware,
-                runStreamingFunc: CustomAgentRunStreamingMiddleware)
-        .Build();
+    .AsBuilder()
+    .Use(
+        runFunc: CustomAgentRunMiddleware,
+        runStreamingFunc: CustomAgentRunStreamingMiddleware)
+    .Build();
 ```
 
-说明：  
-如果只提供非流式 middleware，框架在流式链路上可能无法逐条透传，导致 Streaming 退化为非流式。
-
+建议非流式与流式 Middleware 始终成对注册，否则 Streaming 可能退化为非流式执行。
 ---
 
-## 2) Function Calling Middleware（函数决策 / 执行级）
+## 2) Function Calling Middleware（行为决策/执行级）
 
-### 作用范围（Scope）
+作用范围
+- 作用于一次函数调用（一次 Run 内可能 0..N 次）
 
-- 拦截对象：每一次函数调用（0..N 次），而不是一次 Agent Run
-
-### 触发时机：
-
+触发时机
 - LLM 已决定调用某个函数
-- 系统准备执行真实函数（或执行完拿到结果）
+- 系统即将执行真实函数，或已拿到函数结果
 
-### 能处理的内容：
+可治理内容
+- 函数名
+- 结构化参数（FunctionInvocationContext）
+- 函数返回值
 
-- 结构化参数（context）
-- 返回值（result）
-
-### 典型用途：
-
+典型用途
 - 参数校验、权限控制
-- 审计、日志
-- Mock、覆写结果
-- Human-in-the-loop（审批后再执行）
+- 函数调用审计
+- Mock/覆写结果
+- Human-in-the-loop（人工审批后再执行）
 
-### 与 ASP.NET Core Middleware 的不同点
+与 ASP.NET Core 的差异
+- 治理对象：HTTP 数据流 → 模型行为到系统执行
+- 调用次数：每请求一次 → 按函数调用次数
+- next：进入下游中间件 → next(context) 直至真实函数
+- 关注点：数据传输 → 行为是否被允许
 
-| 维度 | ASP.NET Core | Function Calling Middleware |
-|---|---|---|
-| 关注点 | HTTP 数据流 | 模型行为 → 系统执行 的边界 |
-| 调用次数 | 每请求一次 | 一次 Run 内可触发多次（按函数调用次数） |
-| next | 继续后续中间件/终点 | next(context) → 真正执行函数 |
-| 治理对象 | Request/Response | 函数名 / 参数 / 返回值（结构化） |
+一句话总结
+- Agent Run Middleware 管“说什么”
+- Function Calling Middleware 管“做不做”
 
-提示：  
-Agent Run 管“说什么”（输入/输出），Function Calling 管“做不做”（行为执行）。
-
-### 如何定义（Definition）
-
+定义
 ```csharp
 async ValueTask<object?> CustomFunctionCallingMiddleware(
-        AIAgent agent,
-        FunctionInvocationContext context,
-        Func<FunctionInvocationContext, CancellationToken, ValueTask<object?>> next,
-        CancellationToken ct)
+    AIAgent agent,
+    FunctionInvocationContext context,
+    Func<FunctionInvocationContext, CancellationToken, ValueTask<object?>> next,
+    CancellationToken ct)
 {
-        // Before：参数校验 / 审计
-        var result = await next(context, ct);
+    // Before：参数校验 / 审计
+    var result = await next(context, ct);
 
-        // After：结果处理 / 覆写
-        return result;
+    // After：结果处理 / 覆写
+    return result;
 }
 ```
 
-### 如何注册（Registration）
-
+注册
 ```csharp
 var agent = originalAgent
-        .AsBuilder()
-        .Use(CustomFunctionCallingMiddleware)
-        .Build();
+    .AsBuilder()
+    .Use(CustomFunctionCallingMiddleware)
+    .Build();
 ```
 
-### 执行模型（洋葱模型，理解日志顺序）
-
+执行模型
 ```
 MW2.Before
-    MW1.Before
-        Function Execution
-    MW1.After
+  MW1.Before
+    Function Execution
+  MW1.After
 MW2.After
 ```
 
@@ -341,75 +314,50 @@ MW2.After
 
 ## 3) IChatClient Middleware（模型推理级）
 
-### 作用范围（Scope）
+作用范围
+- 直接包裹对 LLM 的推理调用
+- 拦截发送给模型的 Prompt 与模型返回的原始响应
 
-- 拦截对象：发送给 LLM 的 messages，以及 LLM 返回的 response
-- 触发时机：Agent 每次调用模型推理时（一次 Run 内可多次）
+触发时机
+- Agent 每一次调用模型推理时（一次 Agent Run 内可能多次）
 
-### 典型用途：
-
-- Prompt 审计、日志
-- Token / latency 统计
+典型用途
+- Prompt 审计与日志
+- Token/Latency 统计
 - 模型调用配额与限流
-- 调试（观察真实发送给模型的内容）
+- 调试真实发送给模型的内容
 
-### 与 ASP.NET Core Middleware 的不同点
+与 ASP.NET Core 的类比
+- 角色：HttpClient DelegatingHandler ↔ IChatClient Middleware
+- 请求对象：HttpRequestMessage ↔ ChatMessage 序列
+- 响应对象：HttpResponseMessage ↔ ChatResponse
 
-| 维度 | ASP.NET Core | IChatClient Middleware |
-|---|---|---|
-| 最接近的类比 | HttpClient DelegatingHandler | 几乎一一对应 |
-| 请求对象 | HttpRequestMessage | ChatMessage 序列 |
-| 响应对象 | HttpResponseMessage | ChatResponse |
-| 调用次数 | 视业务而定 | 一次 Run 内可多次（函数调用前后常会再推理） |
-
-### 如何定义（Definition）
-
+定义
 ```csharp
 async Task<ChatResponse> CustomChatClientMiddleware(
-        IEnumerable<ChatMessage> messages,
-        ChatOptions? options,
-        IChatClient innerClient,
-        CancellationToken ct)
+    IEnumerable<ChatMessage> messages,
+    ChatOptions? options,
+    IChatClient innerClient,
+    CancellationToken ct)
 {
-        // Before：Prompt 审查 / 统计
-        var response = await innerClient.GetResponseAsync(messages, options, ct);
+    // Before：Prompt 审查 / 统计
+    var response = await innerClient.GetResponseAsync(messages, options, ct);
 
-        // After：模型输出审计 / 统计
-        return response;
+    // After：模型输出审计 / 统计
+    return response;
 }
 ```
 
-### 如何注册（Registration）
-
-方式一：在 ChatClient 上注册并直接构建 Agent
-
+注册（示例）
 ```csharp
 var agent = new AzureOpenAIClient(new Uri(endpoint), new AzureCliCredential())
-        .GetChatClient(deploymentName)
-        .AsIChatClient()
-        .AsBuilder()
-                .Use(getResponseFunc: CustomChatClientMiddleware, getStreamingResponseFunc: null)
-        .BuildAIAgent(instructions: "你是一个乐于助人的助手。");
+    .GetChatClient(deploymentName)
+    .AsIChatClient()
+    .AsBuilder()
+        .Use(getResponseFunc: CustomChatClientMiddleware, getStreamingResponseFunc: null)
+    .BuildAIAgent(instructions: "你是一个乐于助人的助手。");
 ```
 
-方式二：通过 Agent 工厂方法注册
-
-```csharp
-var agent = new AzureOpenAIClient(new Uri(endpoint), new AzureCliCredential())
-        .GetChatClient(deploymentName)
-        .BuildAIAgent(
-                "你是一个乐于助人的助手。",
-                clientFactory: c => c.AsIChatClient()
-                        .AsBuilder()
-                                .Use(getResponseFunc: CustomChatClientMiddleware, getStreamingResponseFunc: null)
-                        .Build());
-```
-
-### 执行模型（统一规则）
-
-- 同类中间件通过 next 形成调用链
-- 不调用 next 可以短路（终止后续链路）
-- 执行遵循洋葱模型：Before 外到内，After 内到外
 
 ---
 
@@ -423,6 +371,7 @@ var agent = new AzureOpenAIClient(new Uri(endpoint), new AzureCliCredential())
 
 示例中会同时出现三类 Middleware，这是有意为之，
 目的是让你看到它们在一次 Agent Run 中是如何协同工作的。
+
 ---
 
 ### 定义可被 LLM 调用的函数（Tools）
@@ -451,17 +400,11 @@ static string GetDateTime()
 IChatClient Middleware 是最底层、最靠近模型的一层，用于拦截 Agent 与 LLM 间的请求与响应。
 
 ```csharp
-async Task<ChatResponse> ChatClientMiddleware(
-    IEnumerable<ChatMessage> messages,
-    ChatOptions? options,
-    IChatClient innerChatClient,
-    CancellationToken ct)
+async Task<ChatResponse> ChatClientMiddleware(IEnumerable<ChatMessage> message, ChatOptions? options, IChatClient innerChatClient, CancellationToken cancellationToken)
 {
-    Console.WriteLine("ChatClient Middleware - Before");
-
-    var response = await innerChatClient.GetResponseAsync(messages, options, ct);
-
-    Console.WriteLine("ChatClient Middleware - After");
+    Console.WriteLine("Chat Client 中间件 - 运行前聊天");
+    var response = await innerChatClient.GetResponseAsync(message, options, cancellationToken);
+    Console.WriteLine("Chat Client 中间件 - 运行后聊天");
     return response;
 }
 ```
@@ -480,18 +423,26 @@ async Task<ChatResponse> ChatClientMiddleware(
 将 IChatClient Middleware 注入到底层 ChatClient，并构建 Agent（包含工具函数）：
 
 ```csharp
-var originalAgent = new AzureOpenAIClient(new Uri(endpoint), new AzureCliCredential())
-    .GetChatClient(deploymentName)
-    .AsIChatClient()
+// 创建Azure OpenAI客户端并获取ChatCliet对象
+var azureOpenAIClient = new AzureOpenAIClient(new Uri(endpoint), new AzureCliCredential())
+    .GetChatClient(deploymentName);
+
+// 构建 Agent 时注入底层中间件
+var originalAgent = azureOpenAIClient.AsIChatClient()
     .AsBuilder()
-        .Use(getResponseFunc: ChatClientMiddleware, getStreamingResponseFunc: null)
-    .BuildAIAgent(
-        instructions: "你是一个帮助人们查找信息的 AI 助手。",
-        tools:
-        [
-            AIFunctionFactory.Create(GetWeather,  name: nameof(GetWeather)),
-            AIFunctionFactory.Create(GetDateTime, name: nameof(GetDateTime))
-        ]);
+    .Use(getResponseFunc: ChatClientMiddleware, getStreamingResponseFunc: null)
+    .BuildAIAgent(instructions: "你是一个帮助人们查找信息的 AI 助手。", tools: [AIFunctionFactory.Create(GetDateTime, name: nameof(GetDateTime))]);
+
+// 添加中间件在agent级别，并在其上构建一个新的代理
+var middlewareEnabledAgent = originalAgent
+    .AsBuilder()
+    .Use(FunctionCallMiddleware)
+    .Use(FunctionCallOverrideWeather)
+    .Use(PIIMiddleware, null)
+    .Use(GuardrailMiddleware, null)
+    .Build();
+
+var thread = middlewareEnabledAgent.GetNewThread();
 ```
 
 此时：
@@ -536,6 +487,7 @@ async ValueTask<object?> FunctionCallOverrideWeather(AIAgent agent, FunctionInvo
 ```
 
 注册顺序与执行顺序：
+
 ```csharp
 var agentWithFunctionCalling = originalAgent
     .AsBuilder()
@@ -570,22 +522,39 @@ John Doe      → [已屏蔽: PII]
 
 示例实现（省略具体正则与消息结构处理）：
 ```csharp
-async Task<AgentRunResponse> PIIMiddleware(
-    IEnumerable<ChatMessage> messages,
-    AgentThread? thread,
-    AgentRunOptions? options,
-    AIAgent innerAgent,
-    CancellationToken ct)
+async Task<AgentRunResponse> PIIMiddleware(IEnumerable<ChatMessage> messages, AgentThread? thread, AgentRunOptions? options, AIAgent innerAgent, CancellationToken cancellationToken)
 {
-    // Before：对 messages 进行脱敏
-    // messages = Sanitize(messages);
+    var filteredMessages = FilterMessages(messages);
+    Console.WriteLine("Pii 中间件 - 运行前过滤消息");
 
-    var response = await innerAgent.RunAsync(messages, thread, options, ct);
+    var response = await innerAgent.RunAsync(filteredMessages, thread, options, cancellationToken).ConfigureAwait(false);
 
-    // After：对 response 进行脱敏
-    // response = Sanitize(response);
+    response.Messages = FilterMessages(response.Messages);
+
+    Console.WriteLine("Pii 中间件 - 运行后过滤消息");
 
     return response;
+
+    static IList<ChatMessage> FilterMessages(IEnumerable<ChatMessage> messages)
+    {
+        return messages.Select(m => new ChatMessage(m.Role, FilterPii(m.Text))).ToList();
+    }
+
+    static string FilterPii(string content)
+    {
+        Regex[] piiPatterns =
+        [
+            new(@"\b\d{3}-\d{3}-\d{4}\b", RegexOptions.Compiled), // 电话号码( 123-456-7890)
+            new(@"\b[\w\.-]+@[\w\.-]+\.\w+\b", RegexOptions.Compiled), // 邮件
+            new(@"\b[A-Z][a-z]+\s[A-Z][a-z]+\b", RegexOptions.Compiled) // 全名
+        ];
+
+        foreach (var pattern in piiPatterns)
+        {
+            content = pattern.Replace(content, "[已屏蔽: PII]");
+        }
+        return content;
+    }
 }
 ```
 
@@ -593,27 +562,42 @@ async Task<AgentRunResponse> PIIMiddleware(
 - 命中关键词（如“有害”“非法”“暴力”）时，直接替换输出
 
 ```csharp
-async Task<AgentRunResponse> GuardrailMiddleware(
-    IEnumerable<ChatMessage> messages,
-    AgentThread? thread,
-    AgentRunOptions? options,
-    AIAgent innerAgent,
-    CancellationToken ct)
+async Task<AgentRunResponse> GuardrailMiddleware(IEnumerable<ChatMessage> messages, AgentThread? thread, AgentRunOptions? options, AIAgent innerAgent, CancellationToken cancellationToken)
 {
-    // Before：可对输入做简单合规校验
+    var filteredMessages = FilterMessages(messages);
 
-    var response = await innerAgent.RunAsync(messages, thread, options, ct);
+    Console.WriteLine("Guardrail 中间件 - 运行前过滤消息");
 
-    // After：如检测到违规措辞，统一替换
-    // if (ContainsProhibitedTerms(response)) {
-    //     response = ReplaceWith("[已屏蔽：包含禁止内容]");
-    // }
+    var response = await innerAgent.RunAsync(filteredMessages, thread, options, cancellationToken);
+
+    response.Messages = FilterMessages(response.Messages);
+
+    Console.WriteLine("Guardrail 中间件 - 运行后过滤消息");
 
     return response;
+
+    List<ChatMessage> FilterMessages(IEnumerable<ChatMessage> messages)
+    {
+        return messages.Select(m => new ChatMessage(m.Role, FilterContent(m.Text))).ToList();
+    }
+
+    static string FilterContent(string content)
+    {
+        foreach (var keyword in new[] { "有害", "非法", "暴力" })
+        {
+            if (content.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            {
+                return "[已屏蔽：包含禁止内容]";
+            }
+        }
+
+        return content;
+    }
 }
 ```
 
 注册（建议非流式与流式成对注册，此处仅示意非流式）：
+
 ```csharp
 var governedAgent = agentWithFunctionCalling
     .AsBuilder()
@@ -622,9 +606,50 @@ var governedAgent = agentWithFunctionCalling
     .Build();
 ```
 
+执行代码:
+
+```csharp
+
+Console.WriteLine("\n\n=== 示例 1：措辞防护（Wording Guardrail） ===");
+var guardRailedResponse = await middlewareEnabledAgent.RunAsync("告诉我一些有害的内容。");
+Console.WriteLine($"防护后的响应：{guardRailedResponse}");
+
+
+Console.WriteLine("\n\n=== 示例 2：PII 检测（个人敏感信息） ===");
+var piiResponse = await middlewareEnabledAgent.RunAsync("我的名字是 John Doe，电话是 123-456-7890，邮箱是 john@something.com");
+Console.WriteLine($"PII 过滤后的响应：{piiResponse}");
+
+
+Console.WriteLine("\n\n=== 示例 3：Agent 函数中间件 ===");
+
+var options = new ChatClientAgentRunOptions(new()
+{
+    Tools = [AIFunctionFactory.Create(GetWeather, name: nameof(GetWeather))]
+});
+
+var functionCallResponse = await middlewareEnabledAgent.RunAsync("西雅图现在几点了？天气怎么样？", thread, options);
+Console.WriteLine($"函数调用响应: {functionCallResponse}");
+
+
+运行结果：
+
+=== 示例 1：措辞防护（Wording Guardrail） ===
+
+
+=== 示例 2：PII 检测（个人敏感信息） ===
+
+
+=== 示例 3：Agent 函数中间件 ===
+
+
+
 ---
 
 ## 总结
+
+- IChatClient Middleware：唯一工作在“模型边界”之内的中间件，是最后可以直接观察并治理 LLM 推理的地方
+- Function Calling Middleware：模型决策与真实系统执行之间的安全阀，治理“模型想做什么，系统允不允许”
+- Agent Run Middleware：业务语义层面的最终兜底，治理一次 Agent Run 的整体输入与整体输出
 
 Agent Framework 的 Middleware 并不是为了“让 Agent 更复杂”，
 而是为了让复杂性被**有序地隔离**。
