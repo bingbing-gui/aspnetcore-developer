@@ -134,37 +134,168 @@ Microsoft Agent Framework 的 Middleware 机制，正是基于这一思想，将
 
 ## Agent Framework 中的 Middleware
 
-在进入具体代码前，需要明确：Agent Framework 不存在一条统一的 Middleware Pipeline。一次完整的 Agent Run 中，框架刻意划分并治理了三个本质不同的执行边界，每个边界对应一类不可替代的 Middleware。可以把一次 Agent Run 理解为三条并行存在、但在时间上相互嵌套的 Pipeline。
+### 认知前提
+在进入具体代码之前，需要先建立一个关键认识：
+- Agent Framework 并不是在一条统一的 Pipeline 上引入 Middleware
+- 而是在 Agent 执行生命周期的不同“责任边界”上，刻意引入不同类型的 Middleware
+- 这是一个明确的设计选择，而非实现细节
 
-### 一次 Agent Run 的三条治理边界
-- 模型推理边界（LLM Call）：Agent 与大语言模型之间的请求与响应
-- 行为决策与执行边界（Function / Tool Call）：模型已决定“调用某个函数”，但系统尚未或刚刚执行
-- Agent 运行生命周期边界（Agent Run）：一次完整 Agent 运行的整体输入与最终输出
+### 一次 Agent Run，究竟发生了什么？
+从时间轴看，一次完整的 Agent Run 至少经历：
+- 组织 Prompt 并调用大语言模型进行推理
+- 模型在推理过程中可能决定调用某个函数（Tool）
+- Agent 接收模型输出与函数执行结果，生成最终响应
 
-对比来看：ASP.NET Core 只有一条 HTTP Pipeline，而 Agent Framework 同时治理模型调用、行为执行、业务输入输出三个层面。
+对应的失败模式与治理需求：
+- 模型可能产生幻觉或不当输出
+- 模型可能错误或越权地触发系统行为
+- 最终输出可能违反业务合规或隐私要求
 
+这些问题无法在同一层次被统一治理，因此 Agent Framework 将 Middleware 拆分为三条并行、但时间上相互嵌套的 Pipeline。
+
+### 三条 Pipeline = 三个不可混合的治理边界
+可以将一次 Agent Run 理解为三条责任明确的 Pipeline：
+
+1) 模型推理边界（LLM Call）
+- 治理 Agent 与大模型之间的请求与响应
+
+2) 行为决策与执行边界（Function / Tool Call）
+- 治理“模型已经决定要做什么，但系统是否允许它真的去做”
+
+3) Agent 运行生命周期边界（Agent Run）
+- 治理一次完整 Agent 运行的整体输入与最终输出
+
+### 对比视角
+- ASP.NET Core 只有一条 HTTP Pipeline
+- Agent Framework 则必须同时治理：模型调用 / 行为执行 / 业务输入输出 三个层面
+
+接下来，将按这三条 Pipeline 在时间轴上的自然顺序逐一展开。
 ---
 
-## 1) Agent Run Middleware（Agent 生命周期级）
+## 1) IChatClient Middleware（模型推理级）
 
-作用范围
-- 作用于一次完整的 Agent 运行过程
-- 可拦截并修改输入消息 IEnumerable<ChatMessage> 与最终输出 AgentRunResponse
-- 最外层、最贴近业务语义
+从距离模型最近的一层开始。
 
-典型用途
-- 输入/输出双向的 PII 脱敏
-- 输入/输出双向的内容合规（Guardrails）
-- 统一审计、结果转换、业务级兜底
+作用范围（Scope）
+- 直接包裹对 LLM 的推理调用
+- 拦截发送给模型的 Prompt（ChatMessage）
+- 拦截模型返回的原始响应（ChatResponse）
+- 只要一次 Agent Run 中触发了模型推理，就一定会执行
 
-与 ASP.NET Core 的核心差异
-- 处理对象：HTTP Request/Response → Agent 输入消息/最终输出
-- 上下文：HttpContext → messages/thread/options
-- next：RequestDelegate(context) → innerAgent.RunAsync(...)
-- 调用次数：每请求一次 → 每次 Agent Run 一次（Run 内部可能多次 LLM 推理与函数调用）
+为什么这一层不可替代？
+- 这是系统中唯一仍工作在“模型边界”之内的中间件
+- 一旦模型输出被解释为函数调用意图，或被封装为 AgentRunResponse，后续中间件处理的对象就不再是“模型推理”，而是“系统行为”或“业务结果”
 
-注意
-- Agent Run Middleware 不直接治理函数参数或返回值，治理的是“整体输入”和“整体输出”。
+因此，以下能力需要在此层实现才能足够准确：
+- Prompt 审计与日志
+- Token / Latency 统计
+- 模型调用配额与限流
+- 调试真实发送给模型的内容
+
+定义
+```csharp
+async Task<ChatResponse> CustomChatClientMiddleware(
+    IEnumerable<ChatMessage> messages,
+    ChatOptions? options,
+    IChatClient innerClient,
+    CancellationToken ct)
+{
+    // Before：Prompt 审查 / 统计
+    var response = await innerClient.GetResponseAsync(messages, options, ct);
+
+    // After：模型输出审计 / 统计
+    return response;
+}
+```
+
+注册（示例）
+```csharp
+var agent = new AzureOpenAIClient(new Uri(endpoint), new AzureCliCredential())
+    .GetChatClient(deploymentName)
+    .AsIChatClient()
+    .AsBuilder()
+        .Use(getResponseFunc: CustomChatClientMiddleware, getStreamingResponseFunc: null)
+    .BuildAIAgent(instructions: "你是一个乐于助人的助手。");
+```
+
+## 2) Function Calling Middleware（行为决策 / 执行级）
+
+当模型完成推理后，需要回答一个全新的问题：
+> 模型“想做什么”，系统是否允许它去做？
+
+### 作用范围（Scope）
+- 作用于每一次函数（Tool）调用
+- 一次 Agent Run 内可能触发 0..N 次
+- 拦截并治理结构化的函数名、参数与返回值
+
+### 核心价值
+这一层不处理自然语言，而是位于“模型决策 → 系统执行”的边界：
+- 把关模型已作出的行为决策
+- 在真正执行前进行安全与合规校验
+- 为系统提供可审计、可覆写的控制点
+
+### 典型能力
+- 权限控制（Allow/Deny、参数白名单/黑名单）
+- 行为审计（函数名、参数、结果、耗时）
+- Mock / 结果覆写（沙箱、回放、故障注入）
+- Human-in-the-loop（人工审批/拒绝/修改参数）
+
+### 一句话定位
+- Agent Run Middleware 管“说什么”
+- Function Calling Middleware 管“做不做”
+
+定义
+```csharp
+async ValueTask<object?> CustomFunctionCallingMiddleware(
+    AIAgent agent,
+    FunctionInvocationContext context,
+    Func<FunctionInvocationContext, CancellationToken, ValueTask<object?>> next,
+    CancellationToken ct)
+{
+    // Before：参数校验 / 审计
+    var result = await next(context, ct);
+
+    // After：结果处理 / 覆写
+    return result;
+}
+```
+
+注册
+```csharp
+var agent = originalAgent
+    .AsBuilder()
+    .Use(CustomFunctionCallingMiddleware)
+    .Build();
+```
+
+执行模型
+```
+MW2.Before
+  MW1.Before
+    Function Execution
+  MW1.After
+MW2.After
+```
+
+---
+## 3) Agent Run Middleware（Agent 生命周期级）
+
+当模型推理与函数执行都结束后，系统仍需对整体输入与整体输出负责。这正是 Agent Run Middleware 的职责。
+
+### 作用范围（Scope）
+- 拦截一次完整 Agent Run 的：
+    - 输入消息
+    - 最终输出结果
+- 处于最外层，最贴近业务语义
+
+### 典型用途
+- 输入/输出双向 PII 脱敏
+- 内容合规（Guardrails）
+- 统一审计、兜底与结果转换
+
+### 注意事项
+- 不关心函数内部发生了什么
+- 治理的是“这一轮 Agent 运行，对外是否合规”
 
 定义
 ```csharp
@@ -247,118 +378,6 @@ var agent = originalAgent
 建议非流式与流式 Middleware 始终成对注册，否则 Streaming 可能退化为非流式执行。
 ---
 
-## 2) Function Calling Middleware（行为决策/执行级）
-
-作用范围
-- 作用于一次函数调用（一次 Run 内可能 0..N 次）
-
-触发时机
-- LLM 已决定调用某个函数
-- 系统即将执行真实函数，或已拿到函数结果
-
-可治理内容
-- 函数名
-- 结构化参数（FunctionInvocationContext）
-- 函数返回值
-
-典型用途
-- 参数校验、权限控制
-- 函数调用审计
-- Mock/覆写结果
-- Human-in-the-loop（人工审批后再执行）
-
-与 ASP.NET Core 的差异
-- 治理对象：HTTP 数据流 → 模型行为到系统执行
-- 调用次数：每请求一次 → 按函数调用次数
-- next：进入下游中间件 → next(context) 直至真实函数
-- 关注点：数据传输 → 行为是否被允许
-
-一句话总结
-- Agent Run Middleware 管“说什么”
-- Function Calling Middleware 管“做不做”
-
-定义
-```csharp
-async ValueTask<object?> CustomFunctionCallingMiddleware(
-    AIAgent agent,
-    FunctionInvocationContext context,
-    Func<FunctionInvocationContext, CancellationToken, ValueTask<object?>> next,
-    CancellationToken ct)
-{
-    // Before：参数校验 / 审计
-    var result = await next(context, ct);
-
-    // After：结果处理 / 覆写
-    return result;
-}
-```
-
-注册
-```csharp
-var agent = originalAgent
-    .AsBuilder()
-    .Use(CustomFunctionCallingMiddleware)
-    .Build();
-```
-
-执行模型
-```
-MW2.Before
-  MW1.Before
-    Function Execution
-  MW1.After
-MW2.After
-```
-
----
-
-## 3) IChatClient Middleware（模型推理级）
-
-作用范围
-- 直接包裹对 LLM 的推理调用
-- 拦截发送给模型的 Prompt 与模型返回的原始响应
-
-触发时机
-- Agent 每一次调用模型推理时（一次 Agent Run 内可能多次）
-
-典型用途
-- Prompt 审计与日志
-- Token/Latency 统计
-- 模型调用配额与限流
-- 调试真实发送给模型的内容
-
-与 ASP.NET Core 的类比
-- 角色：HttpClient DelegatingHandler ↔ IChatClient Middleware
-- 请求对象：HttpRequestMessage ↔ ChatMessage 序列
-- 响应对象：HttpResponseMessage ↔ ChatResponse
-
-定义
-```csharp
-async Task<ChatResponse> CustomChatClientMiddleware(
-    IEnumerable<ChatMessage> messages,
-    ChatOptions? options,
-    IChatClient innerClient,
-    CancellationToken ct)
-{
-    // Before：Prompt 审查 / 统计
-    var response = await innerClient.GetResponseAsync(messages, options, ct);
-
-    // After：模型输出审计 / 统计
-    return response;
-}
-```
-
-注册（示例）
-```csharp
-var agent = new AzureOpenAIClient(new Uri(endpoint), new AzureCliCredential())
-    .GetChatClient(deploymentName)
-    .AsIChatClient()
-    .AsBuilder()
-        .Use(getResponseFunc: CustomChatClientMiddleware, getStreamingResponseFunc: null)
-    .BuildAIAgent(instructions: "你是一个乐于助人的助手。");
-```
-
-
 ---
 
 ## 示例
@@ -376,7 +395,7 @@ var agent = new AzureOpenAIClient(new Uri(endpoint), new AzureCliCredential())
 
 ### 定义可被 LLM 调用的函数（Tools）
 
-首先，定义两个可被 LLM 调用的函数，作为 Agent 的工具（Tools）：
+首先，定义两个可被 LLM 调用的函数，作为 Agent 的工具（Tools）,用来模拟Function Calling 中间件：
 
 ```csharp
 [Description("获取指定位置的天气。")]
@@ -397,7 +416,7 @@ static string GetDateTime()
 
 ### IChatClient Middleware（LLM 推理级）
 
-IChatClient Middleware 是最底层、最靠近模型的一层，用于拦截 Agent 与 LLM 间的请求与响应。
+IChatClient Middleware 是最底层、最靠近模型的一层，用于拦截 Agent 与 LLM 间的请求与响应，定义IChatClient 中间件。
 
 ```csharp
 async Task<ChatResponse> ChatClientMiddleware(IEnumerable<ChatMessage> message, ChatOptions? options, IChatClient innerChatClient, CancellationToken cancellationToken)
@@ -420,7 +439,7 @@ async Task<ChatResponse> ChatClientMiddleware(IEnumerable<ChatMessage> message, 
 
 ### 构建 originalAgent（基础 Agent）
 
-将 IChatClient Middleware 注入到底层 ChatClient，并构建 Agent（包含工具函数）：
+将 IChatClient 中间件注入到底层 ChatClient，并构建 Agent（包含工具函数）：
 
 ```csharp
 // 创建Azure OpenAI客户端并获取ChatCliet对象
@@ -448,7 +467,7 @@ var thread = middlewareEnabledAgent.GetNewThread();
 此时：
 - Agent 已具备 LLM 推理级中间件能力
 - 尚未引入 Agent Run 与 Function Calling 两类中间件
-
+-  
 ---
 
 ### Function Calling Middleware（函数调用级）
