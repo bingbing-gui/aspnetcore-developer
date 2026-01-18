@@ -16,9 +16,85 @@ Microsoft Agent Framework 提供了 Plugins（插件）机制，用于将业务�
 
 需要注意的是，Plugin 并不是 AI 能力本身。AI 实际调用的是 Tool，而 Plugin 的价值在于：用熟悉的 .NET 工程模式，把 AI 能力“接入”现有系统。
 
-## 02 代码核心解析
+## 代码核心解析
 
 下面通过一个简化示例，解析 Program.cs 中的关键设计点。
+
+```csharp
+
+using Azure.AI.OpenAI;
+using Azure.Identity;
+using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
+using OpenAI.Chat;
+using System.Text;
+
+
+Console.InputEncoding = Encoding.UTF8;
+Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
+var endpoint = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT") ?? throw new InvalidOperationException("AZURE_OPENAI_ENDPOINT is not set.");
+var deploymentName = Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT_NAME") ?? "gpt-4o-mini";
+
+ServiceCollection services = new();
+services.AddSingleton<WeatherProvider>();
+services.AddSingleton<CurrentTimeProvider>();
+services.AddSingleton<AgentPlugin>();
+
+IServiceProvider serviceProvider = services.BuildServiceProvider();
+
+AIAgent agent = new AzureOpenAIClient(
+    new Uri(endpoint),
+    new AzureCliCredential())
+    .GetChatClient(deploymentName)
+    .CreateAIAgent(
+        instructions: "你是一个乐于助人的助手，帮助人们查找信息。",
+        name: "Assistant",
+        tools: [.. serviceProvider.GetRequiredService<AgentPlugin>().AsAITools()],
+        services: serviceProvider);
+
+Console.WriteLine(await agent.RunAsync("告诉我西雅图的当前时间和天气。"));
+
+
+internal sealed class AgentPlugin(WeatherProvider weatherProvider)
+{
+    public string GetWeather(string location)
+    {
+        return weatherProvider.GetWeather(location);
+    }
+
+    public DateTimeOffset GetCurrentTime(IServiceProvider sp, string location)
+    {
+        var currentTimeProvider = sp.GetRequiredService<CurrentTimeProvider>();
+
+        return currentTimeProvider.GetCurrentTime(location);
+    }
+
+    public IEnumerable<AITool> AsAITools()
+    {
+        yield return AIFunctionFactory.Create(this.GetWeather);
+        yield return AIFunctionFactory.Create(this.GetCurrentTime);
+    }
+}
+
+internal sealed class WeatherProvider
+{
+    public string GetWeather(string location)
+    {
+        return $"{location}天气是多云高于15°C.";
+    }
+}
+
+internal sealed class CurrentTimeProvider
+{
+    public DateTimeOffset GetCurrentTime(string location)
+    {
+        return DateTimeOffset.Now;
+    }
+}
+
+```
 
 ### 1. 依赖服务的注册
 
@@ -173,7 +249,7 @@ Plugin 的职责包括：
 - Plugins：工程层，解决“.NET 中如何组织、注入和暴露这些能力”
 
 
-## 03 总结与启示
+## 总结与启示
 
 - 模块化设计：通过 Plugins 将业务逻辑与 AI 行为解耦
 - 拥抱 .NET 生态：天然兼容 Microsoft.Extensions.DependencyInjection
