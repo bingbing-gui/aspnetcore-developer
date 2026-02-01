@@ -15,7 +15,6 @@ GitHub Copilot CLI 将 AI 驱动的编码辅助直接带到你的命令行，使
 - **完全控制**：在执行前预览每一个操作——没有你的明确批准，什么都不会发生。
 
 ---
-
 ## 安装 GitHub Copilot CLI
 
 ### Windows（使用 WinGet 安装）
