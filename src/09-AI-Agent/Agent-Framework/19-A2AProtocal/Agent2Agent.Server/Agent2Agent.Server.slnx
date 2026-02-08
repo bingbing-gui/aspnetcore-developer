@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Agent2Agent.Server/Agent2Agent.Server.csproj" />
+  <PackageReference Include="Azure.AI.OpenAI" Version="2.8.0-beta.1" />
+  <PackageReference Include="Azure.Identity" Version="1.18.0-beta.2" />
+</Solution>
