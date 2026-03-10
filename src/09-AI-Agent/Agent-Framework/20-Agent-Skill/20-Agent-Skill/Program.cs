@@ -55,4 +55,5 @@ Console.WriteLine("---------------------------------------");
 AgentSession session = await agent.CreateSessionAsync();
 AgentResponse response2 = await agent.RunAsync("我上周有 3 次客户晚餐和一张 1,200 美元的机票。请生成一份费用报销单，并询问是否有缺失的细节。",
     session);
+
 Console.WriteLine($"Agent: {response2.Text}\n");
