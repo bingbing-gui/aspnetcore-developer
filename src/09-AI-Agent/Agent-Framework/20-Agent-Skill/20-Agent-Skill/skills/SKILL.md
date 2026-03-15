@@ -1,40 +1,59 @@
 ---
 name: expense-report
-description: File and validate employee expense reports according to Contoso company policy. Use when asked about expense submissions, reimbursement rules, receipt requirements, spending limits, or expense categories.
+description: 根据 Contoso 公司政策提交并验证员工报销单。当被询问有关费用提交、报销规则、收据要求、支出限制或费用类别时使用。
 metadata:
   author: contoso-finance
   version: "2.1"
 ---
 
-# Expense Report
+# 报销单
 
-## Categories and Limits
+## 类别与限额
 
-| Category | Limit | Receipt | Approval |
-|---|---|---|---|
-| Meals — solo | $50/day | >$25 | No |
-| Meals — team/client | $75/person | Always | Manager if >$200 total |
-| Lodging | $250/night | Always | Manager if >3 nights |
-| Ground transport | $100/day | >$15 | No |
-| Airfare | Economy | Always | Manager; VP if >$1,500 |
-| Conference/training | $2,000/event | Always | Manager + L&D |
-| Office supplies | $100 | Yes | No |
-| Software/subscriptions | $50/month | Yes | Manager if >$200/year |
+| 类别               | 限额        | 收据    | 审批                         |
+|--------------------|-------------|---------|------------------------------|
+| 餐饮 — 单人        | $50 / 天    | > $25   | 否                           |
+| 餐饮 — 团队 / 客户 | $75 / 人    | 必须    | 若总额 > $200 需经理审批     |
+| 住宿               | $250 / 晚   | 必须    | 若 > 3 晚需经理审批          |
+| 地面交通           | $100 / 天   | > $15   | 否                           |
+| 机票               | 经济舱      | 必须    | 经理审批；若 > $1,500 需副总裁审批 |
+| 会议 / 培训        | $2,000 / 次 | 必须    | 经理 + 学习与发展部门审批    |
+| 办公用品           | $100        | 需要    | 否                           |
+| 软件 / 订阅        | $50 / 月    | 需要    | 若 > $200 / 年需经理审批     |
 
-## Filing Process
+---
 
-1. Collect receipts — must show vendor, date, amount, payment method.
-2. Categorize per table above.
-3. Use template: [assets/expense-report-template.md](assets/expense-report-template.md).
-4. For client/team meals: list attendee names and business purpose.
-5. Submit — auto-approved if <$500; manager if $500–$2,000; VP if >$2,000.
-6. Reimbursement: 10 business days via direct deposit.
+## 提交流程
 
-## Policy Rules
+1. 收集收据 —— 必须包含以下信息：
+	- 商家名称
+	- 日期
+	- 金额
+	- 支付方式
+2. 根据上表进行费用分类。
+3. 使用报销模板：assets/expense-report-template.md
+4. 对于客户或团队餐饮，需要提供：
+	- 参与人员姓名
+	- 商务目的说明
+5. 提交审批：
+	- **<$500**：自动批准
+	- **$500–$2,000**：经理审批
+	- **>$2,000**：副总裁审批
+6. 报销支付：
+	- 在 **10 个工作日内**
+	- 通过 **直接存款（Direct Deposit）** 完成。
 
-- Submit within 30 days of transaction.
-- Alcohol is never reimbursable.
-- Foreign currency: convert to USD at transaction-date rate; note original currency and amount.
-- Mixed personal/business travel: only business portion reimbursable; provide comparison quotes.
-- Lost receipts (>$25): file Lost Receipt Affidavit from Finance. Max 2 per quarter.
-- For policy questions not covered above, consult the FAQ: [references/POLICY_FAQ.md](references/POLICY_FAQ.md). Answers should be based on what this document and the FAQ state.
+## 政策规则
+
+- 报销必须在 **交易发生后的 30 天内提交**。
+- **酒精饮料不予报销**。
+- 外币消费：
+	- 按 **交易当天汇率转换为美元**
+	- 必须注明 **原始货币和金额**。
+- 混合个人/商务旅行：
+	- 仅 **商务部分可以报销**
+	- 需要提供 **价格对比证明**。
+- 丢失收据（>$25）：
+	- 需要提交 **财务部门的 Lost Receipt Affidavit（丢失收据声明）**
+	- **每季度最多 2 次**。
+- 如果问题未在本政策中说明，请参考 FAQ：references/POLICY_FAQ.md 回答应基于 **本文件和 FAQ 的内容**。

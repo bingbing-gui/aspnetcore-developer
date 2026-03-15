@@ -45,12 +45,14 @@ AIAgent agent = new AzureOpenAIClient(new Uri(endpoint), new DefaultAzureCredent
 
 // --- Example 1: Expense policy question (loads FAQ resource) ---
 Console.WriteLine("例子 1: 查看费用报销政策常见问题");
+Console.WriteLine("小费可以报销吗？我在一次打车时给了 25% 的小费，想知道这部分是否可以报销。");
 Console.WriteLine("---------------------------------------");
 AgentResponse response1 = await agent.RunAsync("小费可以报销吗？我在一次打车时给了 25% 的小费，想知道这部分是否可以报销。");
 Console.WriteLine($"Agent: {response1.Text}\n");
 
 // --- Example 2: Filing an expense report (multi-turn with template asset) ---
 Console.WriteLine("例子 2: 填写费用报销单");
+Console.WriteLine("我上周有 3 次客户晚餐和一张 1,200 美元的机票。请生成一份费用报销单，并询问是否有缺失的细节。");
 Console.WriteLine("---------------------------------------");
 AgentSession session = await agent.CreateSessionAsync();
 AgentResponse response2 = await agent.RunAsync("我上周有 3 次客户晚餐和一张 1,200 美元的机票。请生成一份费用报销单，并询问是否有缺失的细节。",
